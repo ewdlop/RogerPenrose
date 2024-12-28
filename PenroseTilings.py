@@ -15,5 +15,8 @@ D := [-1/2, sqrt(3)/2]:
 # Generate the tiling
 display(
     seq(rhombus(A, B, C, D), i = 1..10),
-    scaling = constrained, axes = none
+    scaling = constrained, axes = none,
+    title = "$\\text{Penrose Tiling}$",
+    labels = ["$x$", "$y$"],
+    gridlines = true
 );
