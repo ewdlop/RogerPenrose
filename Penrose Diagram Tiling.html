@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        canvas {
+            border: 1px solid #ccc;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="penroseCanvas"></canvas>
+        <div class="controls">
+            <button onclick="generateNewTiling()">Generate New</button>
+            <button onclick="toggleGlueRegion()">Toggle Glue Region</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('penroseCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 1200;
+        canvas.height = 800;
+        
+        // Constants
+        const PHI = (1 + Math.sqrt(5)) / 2;
+        const ITERATIONS = 6;
+        let showGlueRegion = true;
+
+        class Triangle {
+            constructor(x1, y1, x2, y2, x3, y3, type) {
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.x3 = x3;
+                this.y3 = y3;
+                this.type = type;
+            }
+
+            subdivide() {
+                const triangles = [];
+                if (this.type === 0) { // Robinson triangle
+                    const p1x = this.x2 + (this.x3 - this.x2) / PHI;
+                    const p1y = this.y2 + (this.y3 - this.y2) / PHI;
+                    
+                    triangles.push(
+                        new Triangle(p1x, p1y, this.x3, this.y3, this.x2, this.y2, 1),
+                        new Triangle(this.x1, this.y1, p1x, p1y, this.x2, this.y2, 0)
+                    );
+                } else { // Gnomon triangle
+                    const p1x = this.x1 + (this.x2 - this.x1) / PHI;
+                    const p1y = this.y1 + (this.y2 - this.y1) / PHI;
+                    
+                    triangles.push(
+                        new Triangle(p1x, p1y, this.x2, this.y2, this.x1, this.y1, 0),
+                        new Triangle(this.x3, this.y3, p1x, p1y, this.x1, this.y1, 1)
+                    );
+                }
+                return triangles;
+            }
+
+            draw(offset = 0) {
+                ctx.beginPath();
+                ctx.moveTo(this.x1 + offset, this.y1);
+                ctx.lineTo(this.x2 + offset, this.y2);
+                ctx.lineTo(this.x3 + offset, this.y3);
+                ctx.closePath();
+                
+                // Different colors for different triangle types
+                if (this.type === 0) {
+                    ctx.fillStyle = '#FFD700';  // Golden
+                } else {
+                    ctx.fillStyle = '#4169E1';  // Royal Blue
+                }
+                
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+            }
+        }
+
+        function generateInitialTriangles(centerX, centerY, radius) {
+            const triangles = [];
+            const angleStep = (2 * Math.PI) / 10;
+            
+            for (let i = 0; i < 10; i++) {
+                const angle1 = i * angleStep;
+                const angle2 = (i + 1) * angleStep;
+                
+                const x1 = centerX;
+                const y1 = centerY;
+                const x2 = centerX + radius * Math.cos(angle1);
+                const y2 = centerY + radius * Math.sin(angle1);
+                const x3 = centerX + radius * Math.cos(angle2);
+                const y3 = centerY + radius * Math.sin(angle2);
+                
+                triangles.push(new Triangle(x1, y1, x2, y2, x3, y3, i % 2));
+            }
+            
+            return triangles;
+        }
+
+        function subdivideTriangles(triangles, iterations) {
+            if (iterations === 0) return triangles;
+            
+            const newTriangles = [];
+            for (const triangle of triangles) {
+                newTriangles.push(...triangle.subdivide());
+            }
+            
+            return subdivideTriangles(newTriangles, iterations - 1);
+        }
+
+        function createGlueRegion(leftTriangles, rightTriangles) {
+            const glueWidth = 100;
+            const glueRegion = [];
+            
+            // Find triangles in the glue region
+            for (const triangle of [...leftTriangles, ...rightTriangles]) {
+                const centerX = (triangle.x1 + triangle.x2 + triangle.x3) / 3;
+                if (Math.abs(centerX - canvas.width/2) < glueWidth/2) {
+                    glueRegion.push(triangle);
+                }
+            }
+            
+            return glueRegion;
+        }
+
+        function drawPenroseTiling() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Generate left tiling
+            const leftTriangles = generateInitialTriangles(canvas.width/4, canvas.height/2, 300);
+            const subdivedLeftTriangles = subdivideTriangles(leftTriangles, ITERATIONS);
+            
+            // Generate right tiling with different initial rotation
+            const rightTriangles = generateInitialTriangles(3*canvas.width/4, canvas.height/2, 300);
+            const subdivedRightTriangles = subdivideTriangles(rightTriangles, ITERATIONS);
+            
+            // Draw base tilings
+            for (const triangle of subdivedLeftTriangles) {
+                triangle.draw();
+            }
+            for (const triangle of subdivedRightTriangles) {
+                triangle.draw();
+            }
+            
+            // Draw glue region
+            if (showGlueRegion) {
+                const glueRegion = createGlueRegion(subdivedLeftTriangles, subdivedRightTriangles);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+                for (const triangle of glueRegion) {
+                    ctx.beginPath();
+                    ctx.moveTo(triangle.x1, triangle.y1);
+                    ctx.lineTo(triangle.x2, triangle.y2);
+                    ctx.lineTo(triangle.x3, triangle.y3);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+
+        function generateNewTiling() {
+            drawPenroseTiling();
+        }
+
+        function toggleGlueRegion() {
+            showGlueRegion = !showGlueRegion;
+            drawPenroseTiling();
+        }
+
+        // Initial drawing
+        drawPenroseTiling();
+    </script>
+</body>
+</html>
